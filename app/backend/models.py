@@ -43,6 +43,13 @@ class Product(Base):
     sale_items = relationship("SaleItem", back_populates="product")
     purchase_items = relationship("PurchaseItem", back_populates="product")
 
+    @property
+    def profit_margin(self):
+        """Calcula a margem de lucro em porcentagem: ((preço_venda - custo) / custo) * 100"""
+        if self.cost_price == 0:
+            return 0.0
+        return ((self.sale_price - self.cost_price) / self.cost_price) * 100
+
 class Customer(Base):
     __tablename__ = "customers"
     

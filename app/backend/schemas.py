@@ -13,6 +13,8 @@ class ProductBase(BaseModel):
     unit: str = "UN"
     active: bool = True
 
+    profit_margin: Optional[float] = None
+
 class ProductCreate(ProductBase):
     pass
 

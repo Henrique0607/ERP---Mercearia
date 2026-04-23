@@ -207,34 +207,54 @@ export default function Stock() {
                     <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Categoria</th>
                     <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Estoque</th>
                     <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Mínimo</th>
+                    <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Margem (%)</th>
                     <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {stock.map((item) => (
-                    <tr key={item.id} className="border-b border-stone-100 hover:bg-stone-50 transition-colors">
-                      <td className="py-3 px-4 text-sm font-medium text-stone-900">{item.name}</td>
-                      <td className="py-3 px-4 text-sm text-stone-700">{item.sku}</td>
-                      <td className="py-3 px-4 text-sm text-stone-700">{item.category || '-'}</td>
-                      <td className="py-3 px-4 text-sm text-right font-medium">
-                        <span className={item.stock <= item.min_stock ? 'text-red-600' : 'text-stone-900'}>
-                          {item.stock} {item.unit}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-right text-stone-700">{item.min_stock} {item.unit}</td>
-                      <td className="py-3 px-4 text-center">
-                        {item.stock <= item.min_stock ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            Baixo
+                  {stock.map((item) => {
+                    const margin = item.profit_margin || 0;
+                    let marginColorClass, marginLabel;
+                    if (margin >= 30) {
+                      marginColorClass = 'bg-emerald-100 text-emerald-800';
+                      marginLabel = 'Ótima';
+                    } else if (margin >= 10) {
+                      marginColorClass = 'bg-amber-100 text-amber-800';
+                      marginLabel = 'Boa';
+                    } else {
+                      marginColorClass = 'bg-red-100 text-red-800';
+                      marginLabel = 'Ruim';
+                    }
+                    return (
+                      <tr key={item.id} className="border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                        <td className="py-3 px-4 text-sm font-medium text-stone-900">{item.name}</td>
+                        <td className="py-3 px-4 text-sm text-stone-700">{item.sku}</td>
+                        <td className="py-3 px-4 text-sm text-stone-700">{item.category || '-'}</td>
+                        <td className="py-3 px-4 text-sm text-right font-medium">
+                          <span className={item.stock <= item.min_stock ? 'text-red-600' : 'text-stone-900'}>
+                            {item.stock} {item.unit}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                            Normal
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right text-stone-700">{item.min_stock} {item.unit}</td>
+                        <td className="py-3 px-4 text-sm text-right">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${marginColorClass}`}>
+                            {margin.toFixed(1)}% {marginLabel}
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {item.stock <= item.min_stock ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Baixo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                              Normal
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

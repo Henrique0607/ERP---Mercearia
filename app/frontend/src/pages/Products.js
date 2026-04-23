@@ -107,6 +107,21 @@ export default function Products() {
     });
   };
 
+  const getMarginBadge = (margin) => {
+    let colorClass, label;
+    if (margin >= 30) {
+      colorClass = 'bg-emerald-100 text-emerald-800';
+      label = 'Ótima';
+    } else if (margin >= 10) {
+      colorClass = 'bg-amber-100 text-amber-800';
+      label = 'Boa';
+    } else {
+      colorClass = 'bg-red-100 text-red-800';
+      label = 'Ruim';
+    }
+    return { colorClass, label };
+  };
+
   if (loading) {
     return <div className="text-stone-500">Carregando...</div>;
   }
@@ -221,6 +236,24 @@ export default function Products() {
                   />
                 </div>
               </div>
+              <div>
+                <Label>Margem de Lucro</Label>
+                <div className="mt-1 p-3 bg-stone-50 border border-stone-200 rounded-lg text-sm">
+                  <strong>{((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100).toFixed(1)}%</strong>
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                    ((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100) >= 30 
+                      ? 'bg-emerald-100 text-emerald-800' 
+                      : ((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100) >= 10 
+                        ? 'bg-amber-100 text-amber-800' 
+                        : 'bg-red-100 text-red-800'
+                  }`}>
+                    {((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100) >= 30 ? 'Ótima' : ((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100) >= 10 ? 'Boa' : 'Ruim'}
+                  </span>
+                </div>
+                <p className="text-xs text-stone-500 mt-1">
+                  Atualiza automaticamente conforme você altera os preços
+                </p>
+              </div>
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
@@ -263,44 +296,54 @@ export default function Products() {
                 <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Estoque</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Preço Custo</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Preço Venda</th>
+                <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Margem (%)</th>
                 <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => (
-                <tr key={product.id} className="border-b border-stone-100 hover:bg-stone-50 transition-colors">
-                  <td className="py-3 px-4 text-sm text-stone-700">{product.sku}</td>
-                  <td className="py-3 px-4 text-sm font-medium text-stone-900">{product.name}</td>
-                  <td className="py-3 px-4 text-sm text-stone-700">{product.category || '-'}</td>
-                  <td className="py-3 px-4 text-sm text-right">
-                    <span className={product.stock <= product.min_stock ? 'text-red-600 font-semibold' : 'text-stone-700'}>
-                      {product.stock} {product.unit}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-right text-stone-700">R$ {product.cost_price.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-sm text-right font-medium text-stone-900">R$ {product.sale_price.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEdit(product)}
-                        data-testid={`edit-product-${product.id}`}
-                      >
-                        <Pencil className="w-4 h-4 text-stone-600" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(product)}
-                        data-testid={`delete-product-${product.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {products.map((product) => {
+                const margin = product.profit_margin || 0;
+                const { colorClass, label } = getMarginBadge(margin);
+                return (
+                  <tr key={product.id} className="border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                    <td className="py-3 px-4 text-sm text-stone-700">{product.sku}</td>
+                    <td className="py-3 px-4 text-sm font-medium text-stone-900">{product.name}</td>
+                    <td className="py-3 px-4 text-sm text-stone-700">{product.category || '-'}</td>
+                    <td className="py-3 px-4 text-sm text-right">
+                      <span className={product.stock <= product.min_stock ? 'text-red-600 font-semibold' : 'text-stone-700'}>
+                        {product.stock} {product.unit}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right text-stone-700">R$ {product.cost_price.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-sm text-right font-medium text-stone-900">R$ {product.sale_price.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-sm text-right">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+                        {margin.toFixed(1)}% {label}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(product)}
+                          data-testid={`edit-product-${product.id}`}
+                        >
+                          <Pencil className="w-4 h-4 text-stone-600" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(product)}
+                          data-testid={`delete-product-${product.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -308,3 +351,4 @@ export default function Products() {
     </div>
   );
 }
+
