@@ -2,6 +2,8 @@ import asyncio
 from database import engine, Base
 import models
 
+asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 async def create_all_tables():
     print("Criando tabelas no PostgreSQL...")
 
