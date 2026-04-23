@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Outfit:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    /* Fundo Creme Premium (#FDF6EC) */
+    --background: 35 68% 96%;
+    --foreground: 215 25% 17%; /* Texto Principal */
+
+    /* Cards e Popovers */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 17%;
+
+    /* Primary = Verde Escuro Principal (#1F5A43) */
+    --primary: 157 49% 23%;
+    --primary-foreground: 35 68% 96%;
+
+    /* Secondary = Marrom Terra (#6B4F3A) */
+    --secondary: 26 30% 32%;
+    --secondary-foreground: 35 68% 96%;
+
+    /* Muted = Creme para fundos de inputs/detalhes (#F7F3EE) */
+    --muted: 33 22% 95%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent = Laranja Destaque (#F59E0B) */
+    --accent: 38 92% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Destructive (Vermelho padrão para erros) */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    /* Bordas e Inputs (#EFEAE4) */
+    --border: 34 22% 92%;
+    --input: 34 22% 92%;
+    --ring: 157 49% 23%;
+
+    --radius: 0.75rem;
+  }
+
+  /* Dark mode simplificado para manter a identidade */
+  .dark {
+    --background: 215 25% 12%;
+    --foreground: 35 68% 96%;
+    --card: 215 25% 15%;
+    --card-foreground: 35 68% 96%;
+    --primary: 157 49% 35%;
+    --border: 215 25% 25%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    /* Mudamos de bg-white para bg-background para usar o creme */
+    @apply bg-background text-foreground font-body;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "theme": "Light",
+  "archetype": "1 (Organic & Earthy)",
+  "domain": "Small Grocery Store ERP (Sabor & Cia)",
+  "color_palette": {
+    "background": "bg-stone-50",
+    "surface": "bg-white",
+    "primary": "bg-emerald-700",
+    "primary_hover": "bg-emerald-800",
+    "primary_text": "text-emerald-700",
+    "secondary": "bg-amber-600",
+    "accent": "bg-orange-700",
+    "text_primary": "text-stone-900",
+    "text_secondary": "text-stone-500",
+    "border": "border-stone-200"
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "IBM Plex Sans",
+    "h1": "text-3xl font-semibold tracking-tight text-stone-900",
+    "h2": "text-2xl font-semibold tracking-tight text-stone-900",
+    "h3": "text-lg font-medium tracking-tight text-stone-900",
+    "body": "text-sm text-stone-700 leading-relaxed",
+    "label": "text-xs font-semibold uppercase tracking-widest text-stone-500"
+  },
+  "layout": {
+    "spacing_system": "Generous Spacing (p-6 to p-8 internally for forms/cards, gap-4 to gap-6 for grids)",
+    "grid_mode": "MODE B: THE CONTROL ROOM GRID (grid-cols-1 md:grid-cols-3 lg:grid-cols-4)",
+    "container_style": "Flat Solid Surfaces, max 8px border-radius, 1px subtle border (border-stone-200), minimal shadows."
+  },
+  "components": {
+    "buttons": "Flat, rounded-md, solid bg-emerald-700 text-white for primary. hover:bg-emerald-800 transition-colors.",
+    "inputs": "Shadcn inputs. bg-white, border-stone-200, focus:ring-2 focus:ring-emerald-500 focus:border-transparent. text-sm.",
+    "tables": "Dense, crisp lines. border-b border-stone-100 on rows. hover:bg-stone-50. th: uppercase, text-xs, text-stone-500, tracking-wider.",
+    "navigation": "Sidebar App Shell layout. Left sidebar with bg-stone-900 text-stone-300. Active links text-white bg-stone-800. Main content bg-stone-50.",
+    "cards": "bg-white border border-stone-200 rounded-lg p-6 shadow-sm."
+  },
+  "icons": "lucide-react",
+  "media": {
+    "login_background": {
+      "url": "https://images.unsplash.com/photo-1727289186043-31e971d07797?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwyfHxncm9jZXJ5JTIwc3RvcmUlMjBleHRlcmlvciUyMG1vZGVybnxlbnwwfHx8fDE3NzU4OTk2Mjd8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Modern grocery store exterior for login page background"
+    },
+    "placeholder_product_1": {
+      "url": "https://images.unsplash.com/photo-1657288649124-b80bdee3c17e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwxfHxmcmVzaCUyMG9yZ2FuaWMlMjB2ZWdldGFibGVzfGVufDB8fHx8MTc3NTg5OTYyN3ww&ixlib=rb-4.1.0&q=85",
+      "description": "Fresh organic vegetables placeholder"
+    }
+  },
+  "accessibility": {
+    "contrast": "Ensure minimum 4.5:1 ratio for normal text. Avoid light gray on white.",
+    "focus": "All interactive elements must have visible focus rings (focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2)",
+    "testing": "Add data-testid to all key interactions, forms, and navigation (e.g., data-testid='sidebar-nav-vendas', data-testid='submit-login')"
+  },
+  "motion": {
+    "hover": "Subtle background shifts and slight transform (hover:-translate-y-0.5) on summary metric cards.",
+    "transitions": "Use transition-all duration-200 ease-in-out."
+  },
+  "instructions_to_main_agent": [
+    "Build a modern, minimalist ERP dashboard for a small grocery store (Sabor & Cia).",
+    "Modules required: Cadastros (Clientes, Fornecedores, Produtos, Usuários), Compras, Estoque, Vendas (PDV), Financeiro, Contabilidade, Auditoria/Logs.",
+    "Implement a responsive App Shell with a dark sidebar (bg-stone-900) and light main content area (bg-stone-50).",
+    "Use Archetype 1 (Organic & Earthy) colors. Primary interactive elements should be Emerald Green (bg-emerald-700).",
+    "Use dense 'Control Room' grid layout for the main dashboard (Vendas overview, Estoque alerts).",
+    "Ensure tables are data-dense but readable, using Shadcn components.",
+    "Include data-testid on all interactive elements to support automated testing.",
+    "No glassmorphism. Keep surfaces flat, crisp, with subtle 1px borders.",
+    "Incorporate the provided media images for placeholders where appropriate, such as login screen and product thumbnails."
+  ]
+}

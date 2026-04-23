@@ -1,0 +1,1 @@
+@tailwind utilities;\n\n.App {\n  min-height: 100vh;\n}\n\n@layer utilities {\n  .text-balance {\n    text-wrap: balance;\n  }\n}
