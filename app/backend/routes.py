@@ -251,10 +251,14 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/products", response_model=ProductSchema)
 async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_db)):
-    db_product = Product(**product.model_dump())
+    product_dict = product.model_dump()
+    product_dict.pop('profit_margin', None)  # Remove profit_margin since it's a property, not a column
+    db_product = Product(**product_dict)
     db.add(db_product)
     await db.flush()
-    await create_audit_log(db, "CREATE", "product", db_product.id, new_data=product.model_dump())
+    new_data = product.model_dump()
+    new_data.pop('profit_margin', None)
+    await create_audit_log(db, "CREATE", "product", db_product.id, new_data=new_data)
     await db.commit()
     await db.refresh(db_product)
     return db_product
