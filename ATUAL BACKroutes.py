@@ -4,6 +4,8 @@ from sqlalchemy import select, func, and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from database import get_db
+from sqlalchemy import distinct
+from models import FinancialEntry, Sale
 from models import Product, Customer, Supplier, Sale, SaleItem, Purchase, PurchaseItem, StockMovement, FinancialEntry, Account, AuditLog, User
 from schemas import (
     UserCreate, UserUpdate, User as UserSchema, LoginRequest, LoginResponse,
@@ -317,12 +319,64 @@ DEFAULT_ACCOUNTS = [
     ("3.6.4.2", "Baixa de Bens do Ativo Nao Circulante", "DESPESA", "3.6.4"),
     ("3.6.4.3", "Perda em Investimento", "DESPESA", "3.6.4"),
     ("3.7", "PROVISAO PARA IMPOSTO DE RENDA E CSLL", "DESPESA", "3"),
+    ("3.5.4.6", "Agua", "DESPESA", "3.5.4"),
+    ("3.5.4.7", "Energia Eletrica", "DESPESA", "3.5.4"),
+    ("3.5.4.8", "Internet", "DESPESA", "3.5.4"),
+    ("3.5.4.9", "Telefone", "DESPESA", "3.5.4"),
+    ("3.5.4.10", "Aluguel", "DESPESA", "3.5.4"),
+    ("3.5.4.11", "Material de Limpeza", "DESPESA", "3.5.4"),
+    ("3.5.4.12", "Material de Escritorio", "DESPESA", "3.5.4"),
+    ("3.5.4.13", "Combustivel", "DESPESA", "3.5.4"),
+    ("3.5.4.14", "Manutencao", "DESPESA", "3.5.4"),
+    ("3.5.4.15", "Software e Sistemas", "DESPESA", "3.5.4"),
 ]
 
 async def get_account_id_by_code(db: AsyncSession, code: str):
     result = await db.execute(select(Account).where(Account.code == code))
     account = result.scalar_one_or_none()
     return account.id if account else None
+
+async def infer_account_id_for_entry(db: AsyncSession, entry, ignore_account_id: bool = False):
+    if entry.account_id and not ignore_account_id:
+        return entry.account_id
+
+    if entry.entry_type == "RECEITA":
+        return await get_account_id_by_code(db, "3.1")
+
+        if entry.entry_type == "DESPESA":
+            category = (entry.category or "").lower()
+            description = (entry.description or "").lower()
+            is_tax = "imposto" in category or "imposto" in description
+
+            # Não-baixadas devem ser registradas como passivos (contas a pagar / impostos a pagar)
+            if entry.status != "BAIXADO":
+                if is_tax:
+                    return await get_account_id_by_code(db, "2.1.5")
+                if "fornecedor" in category or "fornecedor" in description or "compra" in category or "compra" in description:
+                    return await get_account_id_by_code(db, "2.1.2")
+                return await get_account_id_by_code(db, "2.1.2")
+
+        # Despesas baixadas são classificadas como contas de resultado
+        if is_tax:
+            return await get_account_id_by_code(db, "3.3")
+        if "agua" in category or "agua" in description:
+            return await get_account_id_by_code(db, "3.5.4.6")
+        if "luz" in category or "energia" in description:
+            return await get_account_id_by_code(db, "3.5.4.7")
+        if "telefone" in category or "telefone" in description:
+            return await get_account_id_by_code(db, "3.5.4.9")
+        if "aluguel" in category or "aluguel" in description:
+            return await get_account_id_by_code(db, "3.5.4.10")
+        if "combust" in category or "combust" in description:
+            return await get_account_id_by_code(db, "3.5.4.13")
+        if "manut" in category or "manut" in description:
+            return await get_account_id_by_code(db, "3.5.4.14")
+        if "material" in category or "material" in description:
+            return await get_account_id_by_code(db, "3.5.4.12")
+        if "software" in category or "software" in description or "sistema" in category or "sistema" in description:
+            return await get_account_id_by_code(db, "3.5.4.15")
+
+        return await get_account_id_by_code(db, "3.5.4.4")
 
 async def seed_default_accounts(db: AsyncSession):
     created = 0
@@ -371,12 +425,12 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
     return {"user": db_user}
 
 @router.get("/users", response_model=List[UserSchema])
-async def get_users(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN"))):
+async def get_users(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "TI"))):
     result = await db.execute(select(User).order_by(User.name))
     return result.scalars().all()
 
 @router.get("/users/lookup")
-async def get_users_lookup(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "VENDEDOR"))):
+async def get_users_lookup(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "TI"))):
     result = await db.execute(select(User.id, User.name, User.role).where(User.active == True).order_by(User.name))
     return [
         {
@@ -388,7 +442,7 @@ async def get_users_lookup(db: AsyncSession = Depends(get_db), _: User = Depends
     ]
 
 @router.post("/users", response_model=UserSchema)
-async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN"))):
+async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "TI"))):
     existing = await db.execute(select(User).where(User.email == user.email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="E-mail ja cadastrado")
@@ -404,7 +458,7 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db), _: U
     return db_user
 
 @router.put("/users/{user_id}", response_model=UserSchema)
-async def update_user(user_id: int, user: UserUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN"))):
+async def update_user(user_id: int, user: UserUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "TI"))):
     result = await db.execute(select(User).where(User.id == user_id))
     db_user = result.scalar_one_or_none()
     if not db_user:
@@ -430,7 +484,7 @@ async def update_user(user_id: int, user: UserUpdate, db: AsyncSession = Depends
     return db_user
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN"))):
+async def delete_user(user_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "TI"))):
     result = await db.execute(select(User).where(User.id == user_id))
     db_user = result.scalar_one_or_none()
     if not db_user:
@@ -582,6 +636,26 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
         # Isso ajudará a ver o erro real no console do Python
         print(f"ERRO NO DASHBOARD: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/categories")
+async def get_categories(
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(distinct(Product.category))
+    )
+
+    categories = result.scalars().all()
+
+    clean_categories = sorted(
+        list({
+            category.strip().title()
+            for category in categories
+            if category and category.strip()
+        })
+    )
+
+    return clean_categories
 
 @router.get("/products", response_model=List[ProductSchema])
 async def get_products(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
@@ -636,6 +710,22 @@ async def update_product(product_id: int, product: ProductUpdate, db: AsyncSessi
     await db.refresh(db_product)
     return db_product
 
+@router.get("/categories")
+async def get_categories(
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(distinct(Product.category))
+    )
+
+    categories = result.scalars().all()
+
+    return [
+        category
+        for category in categories
+        if category and category.strip()
+    ]
+
 @router.delete("/products/{product_id}")
 async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
     try:
@@ -660,7 +750,7 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/reports/purchase-needs", response_model=List[PurchaseNeedReport])
-async def get_purchase_need_report(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_purchase_need_report(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "COMPRADOR"))):
     """
     Relatório de necessidade de compra - RF05
     Mostra produtos que precisam ser comprados baseado em:
@@ -835,12 +925,12 @@ async def delete_customer(customer_id: int, db: AsyncSession = Depends(get_db)):
     return {"message": "Cliente deletado"}
 
 @router.get("/suppliers", response_model=List[SupplierSchema])
-async def get_suppliers(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_suppliers(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "COMPRADOR"))):
     result = await db.execute(select(Supplier).offset(skip).limit(limit))
     return result.scalars().all()
 
 @router.get("/suppliers/{supplier_id}", response_model=SupplierSchema)
-async def get_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "COMPRADOR"))):
     result = await db.execute(select(Supplier).where(Supplier.id == supplier_id))
     supplier = result.scalar_one_or_none()
     if not supplier:
@@ -848,7 +938,7 @@ async def get_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), _: 
     return supplier
 
 @router.post("/suppliers", response_model=SupplierSchema)
-async def create_supplier(supplier: SupplierCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def create_supplier(supplier: SupplierCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "COMPRADOR"))):
     if supplier.cnpj:
         supplier.cnpj = validate_cpf_cnpj_document(supplier.cnpj, allow_cpf=False)
     if supplier.email:
@@ -873,7 +963,7 @@ async def create_supplier(supplier: SupplierCreate, db: AsyncSession = Depends(g
     return db_supplier
 
 @router.put("/suppliers/{supplier_id}", response_model=SupplierSchema)
-async def update_supplier(supplier_id: int, supplier: SupplierUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def update_supplier(supplier_id: int, supplier: SupplierUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "COMPRADOR"))):
     result = await db.execute(select(Supplier).where(Supplier.id == supplier_id))
     db_supplier = result.scalar_one_or_none()
     if not db_supplier:
@@ -899,7 +989,7 @@ async def update_supplier(supplier_id: int, supplier: SupplierUpdate, db: AsyncS
     return db_supplier
 
 @router.delete("/suppliers/{supplier_id}")
-async def delete_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def delete_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "COMPRADOR"))):
     result = await db.execute(select(Supplier).where(Supplier.id == supplier_id))
     db_supplier = result.scalar_one_or_none()
     if not db_supplier:
@@ -911,14 +1001,14 @@ async def delete_supplier(supplier_id: int, db: AsyncSession = Depends(get_db), 
     return {"message": "Fornecedor deletado"}
 
 @router.get("/sales", response_model=List[SaleSchema])
-async def get_sales(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def get_sales(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "VENDEDOR", "ATENDENTE"))):
     result = await db.execute(
         select(Sale).options(selectinload(Sale.items)).order_by(Sale.created_at.desc()).offset(skip).limit(limit)
     )
     return result.scalars().all()
 
 @router.get("/sales/{sale_id}", response_model=SaleSchema)
-async def get_sale(sale_id: int, db: AsyncSession = Depends(get_db)):
+async def get_sale(sale_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "VENDEDOR", "ATENDENTE"))):
     result = await db.execute(select(Sale).where(Sale.id == sale_id))
     sale = result.scalar_one_or_none()
     if not sale:
@@ -926,7 +1016,7 @@ async def get_sale(sale_id: int, db: AsyncSession = Depends(get_db)):
     return sale
 
 @router.post("/sales", response_model=SaleSchema)
-async def create_sale(sale: SaleCreate, db: AsyncSession = Depends(get_db)):
+async def create_sale(sale: SaleCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "VENDEDOR", "ATENDENTE"))):
     total = 0
     sale_items = []
     
@@ -1001,7 +1091,7 @@ async def create_sale(sale: SaleCreate, db: AsyncSession = Depends(get_db)):
     return db_sale
 
 @router.get("/purchases", response_model=List[PurchaseSchema])
-async def get_purchases(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_purchases(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "COMPRADOR"))):
     result = await db.execute(
         select(Purchase)
         .options(selectinload(Purchase.items))
@@ -1012,7 +1102,7 @@ async def get_purchases(skip: int = 0, limit: int = 100, db: AsyncSession = Depe
     return result.scalars().all()
 
 @router.post("/purchases", response_model=PurchaseSchema)
-async def create_purchase(purchase: PurchaseCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def create_purchase(purchase: PurchaseCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "COMPRADOR"))):
     total = 0
     purchase_items = []
     
@@ -1137,14 +1227,14 @@ async def create_stock_movement(movement: StockMovementCreate, db: AsyncSession 
     return db_movement
 
 @router.get("/financial/entries", response_model=List[FinancialEntrySchema])
-async def get_financial_entries(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_financial_entries(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(
         select(FinancialEntry).order_by(FinancialEntry.created_at.desc()).offset(skip).limit(limit)
     )
     return result.scalars().all()
 
 @router.get("/financial/payables", response_model=List[FinancialEntrySchema])
-async def get_payables(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_payables(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(
         select(FinancialEntry)
         .where(FinancialEntry.entry_type == "DESPESA")
@@ -1153,7 +1243,7 @@ async def get_payables(db: AsyncSession = Depends(get_db), _: User = Depends(req
     return result.scalars().all()
 
 @router.get("/financial/receivables", response_model=List[FinancialEntrySchema])
-async def get_receivables(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_receivables(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(
         select(FinancialEntry)
         .where(FinancialEntry.entry_type == "RECEITA", FinancialEntry.status == "PENDENTE")
@@ -1162,19 +1252,26 @@ async def get_receivables(db: AsyncSession = Depends(get_db), _: User = Depends(
     return result.scalars().all()
 
 @router.get("/financial/cashflow")
-async def get_cashflow(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
-    receitas = await db.execute(
+async def get_cashflow(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))
+):
+    total_receitas = await db.scalar(
         select(func.coalesce(func.sum(FinancialEntry.amount), 0))
-        .where(FinancialEntry.entry_type == "RECEITA")
-    )
-    total_receitas = receitas.scalar() or 0
-    
-    despesas = await db.execute(
+        .where(
+            FinancialEntry.entry_type == "RECEITA",
+            FinancialEntry.status == "BAIXADO"
+        )
+    ) or 0
+
+    total_despesas = await db.scalar(
         select(func.coalesce(func.sum(FinancialEntry.amount), 0))
-        .where(FinancialEntry.entry_type == "DESPESA")
-    )
-    total_despesas = despesas.scalar() or 0
-    
+        .where(
+            FinancialEntry.entry_type == "DESPESA",
+            FinancialEntry.status == "BAIXADO"
+        )
+    ) or 0
+
     return {
         "receitas": float(total_receitas),
         "despesas": float(total_despesas),
@@ -1182,7 +1279,7 @@ async def get_cashflow(db: AsyncSession = Depends(get_db), _: User = Depends(req
     }
 
 @router.get("/financial/profitability", response_model=ProfitabilityReport)
-async def get_profitability_report(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_profitability_report(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(
         select(
             Product.id,
@@ -1231,17 +1328,37 @@ async def get_profitability_report(db: AsyncSession = Depends(get_db), _: User =
     }
 
 @router.post("/financial/entries", response_model=FinancialEntrySchema)
-async def create_financial_entry(entry: FinancialEntryCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
-    db_entry = FinancialEntry(**entry.model_dump())
+async def create_financial_entry(entry: FinancialEntryCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
+    due_date = None
+
+    if entry.due_date:
+        if isinstance(entry.due_date, str):
+            due_date = datetime.strptime(entry.due_date, "%Y-%m-%d").date()
+        else:
+            due_date = entry.due_date
+
+    account_id = await infer_account_id_for_entry(db, entry)
+
+    db_entry = FinancialEntry(
+        entry_type=entry.entry_type,
+        amount=entry.amount,
+        category=entry.category,
+        description=entry.description,
+        account_id=account_id,
+        due_date=due_date,
+        status=entry.status
+    )
+
     db.add(db_entry)
-    await db.flush()
-    await create_audit_log(db, "CREATE", "financial_entry", db_entry.id, new_data=entry.model_dump())
+
     await db.commit()
     await db.refresh(db_entry)
+
     return db_entry
 
+
 @router.put("/financial/entries/{entry_id}", response_model=FinancialEntrySchema)
-async def update_financial_entry(entry_id: int, entry: FinancialEntryUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def update_financial_entry(entry_id: int, entry: FinancialEntryUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(select(FinancialEntry).where(FinancialEntry.id == entry_id))
     db_entry = result.scalar_one_or_none()
     if not db_entry:
@@ -1259,7 +1376,7 @@ async def update_financial_entry(entry_id: int, entry: FinancialEntryUpdate, db:
     return db_entry
 
 @router.put("/financial/entries/{entry_id}/settle", response_model=FinancialEntrySchema)
-async def settle_financial_entry(entry_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def settle_financial_entry(entry_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(select(FinancialEntry).where(FinancialEntry.id == entry_id))
     db_entry = result.scalar_one_or_none()
     if not db_entry:
@@ -1269,13 +1386,15 @@ async def settle_financial_entry(entry_id: int, db: AsyncSession = Depends(get_d
 
     db_entry.status = "BAIXADO"
     db_entry.settled_at = datetime.now(timezone.utc)
+    if db_entry.entry_type == "DESPESA":
+        db_entry.account_id = await infer_account_id_for_entry(db, db_entry, ignore_account_id=True)
     await create_audit_log(db, "UPDATE", "financial_entry", entry_id, new_data={"status": "BAIXADO"})
     await db.commit()
     await db.refresh(db_entry)
     return db_entry
 
 @router.put("/financial/entries/{entry_id}/reverse", response_model=FinancialEntrySchema)
-async def reverse_financial_entry(entry_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def reverse_financial_entry(entry_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(select(FinancialEntry).where(FinancialEntry.id == entry_id))
     db_entry = result.scalar_one_or_none()
     if not db_entry:
@@ -1283,24 +1402,26 @@ async def reverse_financial_entry(entry_id: int, db: AsyncSession = Depends(get_
 
     db_entry.status = "PENDENTE"
     db_entry.settled_at = None
+    if db_entry.entry_type == "DESPESA":
+        db_entry.account_id = await infer_account_id_for_entry(db, db_entry, ignore_account_id=True)
     await create_audit_log(db, "UPDATE", "financial_entry", entry_id, new_data={"status": "PENDENTE"})
     await db.commit()
     await db.refresh(db_entry)
     return db_entry
 
 @router.get("/accounts", response_model=List[AccountSchema])
-async def get_accounts(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def get_accounts(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(select(Account).order_by(Account.code))
     return result.scalars().all()
 
 @router.post("/accounts/seed-default")
-async def seed_accounts_endpoint(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def seed_accounts_endpoint(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     created = await seed_default_accounts(db)
     await db.commit()
     return {"created": created}
 
 @router.post("/accounts", response_model=AccountSchema)
-async def create_account(account: AccountCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def create_account(account: AccountCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     db_account = Account(**account.model_dump())
     db.add(db_account)
     await db.flush()
@@ -1310,7 +1431,7 @@ async def create_account(account: AccountCreate, db: AsyncSession = Depends(get_
     return db_account
 
 @router.put("/accounts/{account_id}", response_model=AccountSchema)
-async def update_account(account_id: int, account: AccountUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def update_account(account_id: int, account: AccountUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     result = await db.execute(select(Account).where(Account.id == account_id))
     db_account = result.scalar_one_or_none()
     if not db_account:
@@ -1326,7 +1447,7 @@ async def update_account(account_id: int, account: AccountUpdate, db: AsyncSessi
     return db_account
 
 @router.delete("/accounts/{account_id}")
-async def delete_account(account_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE"))):
+async def delete_account(account_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
     db_account = await db.scalar(select(Account).where(Account.id == account_id))
     if not db_account:
         raise HTTPException(status_code=404, detail="Conta nao encontrada")
@@ -1345,33 +1466,107 @@ async def delete_account(account_id: int, db: AsyncSession = Depends(get_db), _:
     return {"message": "Conta deletada"}
 
 @router.get("/accounting/balance-sheet", response_model=BalanceSheetReport)
-async def get_balance_sheet(db: AsyncSession = Depends(get_db)):
-    receitas = await db.scalar(select(func.coalesce(func.sum(FinancialEntry.amount), 0)).where(FinancialEntry.entry_type == "RECEITA")) or 0
-    despesas = await db.scalar(select(func.coalesce(func.sum(FinancialEntry.amount), 0)).where(FinancialEntry.entry_type == "DESPESA")) or 0
-    estoque = await db.scalar(select(func.coalesce(func.sum(Product.stock * Product.cost_price), 0))) or 0
-    caixa = receitas - despesas
-    ativos = estoque + max(caixa, 0)
-    passivos = max(-caixa, 0)
-    resultado_acumulado = receitas - despesas
-    patrimonio_liquido = ativos - passivos
+async def get_balance_sheet(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))
+):
+    ativos = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .join(Account, Account.id == FinancialEntry.account_id)
+        .where(Account.account_type == "ATIVO")
+    ) or 0
+
+    passivos = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .join(Account, Account.id == FinancialEntry.account_id)
+        .where(Account.account_type == "PASSIVO")
+    ) or 0
+
+    # Incluir passivos vindos de despesas pendentes que ainda não foram baixadas
+    pending_expenses_as_liabilities = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .join(Account, Account.id == FinancialEntry.account_id)
+        .where(
+            FinancialEntry.entry_type == "DESPESA",
+            FinancialEntry.status != "BAIXADO",
+            Account.account_type != "PASSIVO"
+        )
+    ) or 0
+    passivos += pending_expenses_as_liabilities
+
+    patrimonio_base = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .join(Account, Account.id == FinancialEntry.account_id)
+        .where(Account.account_type == "PATRIMONIO_LIQUIDO")
+    ) or 0
+
+    receitas = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .where(FinancialEntry.entry_type == "RECEITA", FinancialEntry.status == "BAIXADO")
+    ) or 0
+
+    despesas = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .where(
+            FinancialEntry.entry_type == "DESPESA",
+            FinancialEntry.status == "BAIXADO",
+            ~FinancialEntry.category.ilike("%imposto%"),
+            ~FinancialEntry.description.ilike("%imposto%")
+        )
+    ) or 0
+
+    impostos = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .where(
+            FinancialEntry.entry_type == "DESPESA",
+            FinancialEntry.status == "BAIXADO",
+            or_(
+                FinancialEntry.category.ilike("%imposto%"),
+                FinancialEntry.description.ilike("%imposto%")
+            )
+        )
+    ) or 0
+
+    resultado_acumulado = receitas - despesas - impostos
 
     return {
         "ativos": float(ativos),
         "passivos": float(passivos),
-        "patrimonio_liquido": float(patrimonio_liquido),
+        "patrimonio_liquido": float(patrimonio_base),
         "resultado_acumulado": float(resultado_acumulado),
     }
 
 @router.get("/accounting/income-statement", response_model=IncomeStatementReport)
-async def get_income_statement(db: AsyncSession = Depends(get_db)):
-    receitas = await db.scalar(select(func.coalesce(func.sum(FinancialEntry.amount), 0)).where(FinancialEntry.entry_type == "RECEITA")) or 0
-    despesas = await db.scalar(select(func.coalesce(func.sum(FinancialEntry.amount), 0)).where(FinancialEntry.entry_type == "DESPESA")) or 0
+async def get_income_statement(db: AsyncSession = Depends(get_db), _: User = Depends(require_roles("ADMIN", "GERENTE", "FINANCEIRO"))):
+    receitas = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .where(FinancialEntry.entry_type == "RECEITA", FinancialEntry.status == "BAIXADO")
+    ) or 0
+
+    despesas = await db.scalar(
+        select(func.coalesce(func.sum(FinancialEntry.amount), 0))
+        .where(
+            FinancialEntry.entry_type == "DESPESA",
+            FinancialEntry.status == "BAIXADO",
+            ~FinancialEntry.category.ilike("%imposto%"),
+            ~FinancialEntry.description.ilike("%imposto%")
+        )
+    ) or 0
+
     impostos = await db.scalar(
         select(func.coalesce(func.sum(FinancialEntry.amount), 0))
-        .where(FinancialEntry.entry_type == "DESPESA", FinancialEntry.category.ilike("%imposto%"))
+        .where(
+            FinancialEntry.entry_type == "DESPESA",
+            FinancialEntry.status == "BAIXADO",
+            or_(
+                FinancialEntry.category.ilike("%imposto%"),
+                FinancialEntry.description.ilike("%imposto%")
+            )
+        )
     ) or 0
-    lucro_bruto = receitas - despesas + impostos
-    resultado_liquido = receitas - despesas - impostos
+
+    lucro_bruto = float(receitas)
+    resultado_liquido = float(receitas - despesas - impostos)
 
     return {
         "receitas": float(receitas),
@@ -1388,7 +1583,7 @@ async def get_audit_logs(
     entity: Optional[str] = None,
     action: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_roles("ADMIN"))
+    _: User = Depends(require_roles("ADMIN", "AUDITOR"))
 ):
     query = select(AuditLog).order_by(AuditLog.timestamp.desc())
     

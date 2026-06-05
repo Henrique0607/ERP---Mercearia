@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { stockAPI, productsAPI } from '../services/api';
+import { stockAPI, productsAPI, usersAPI } from '../services/api';
 import { AlertTriangle, Plus, TrendingDown, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
@@ -9,11 +9,14 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import ExportActions from '../components/ExportActions';
+import { getCurrentUser } from '../utils/permissions';
 
 export default function Stock() {
   const [stock, setStock] = useState([]);
   const [movements, setMovements] = useState([]);
   const [products, setProducts] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -22,11 +25,14 @@ export default function Stock() {
     quantity: 1,
     reason: ''
   });
+  const user = getCurrentUser();
+  const canMoveStock = ['ADMIN', 'GERENTE'].includes(user?.role);
 
   useEffect(() => {
     loadStock();
     loadMovements();
     loadProducts();
+    loadUsers();
   }, []);
 
   const loadStock = async () => {
@@ -55,6 +61,15 @@ export default function Stock() {
       setProducts(data);
     } catch (error) {
       toast.error('Erro ao carregar produtos');
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const { data } = await usersAPI.lookup();
+      setUsers(data);
+    } catch (error) {
+      setUsers([]);
     }
   };
 
@@ -87,6 +102,17 @@ export default function Stock() {
 
   const lowStockItems = stock.filter(item => item.stock <= item.min_stock);
 
+  const getProductName = (productId) => {
+    const product = products.find((item) => item.id === productId);
+    return product ? product.name : `Produto #${productId}`;
+  };
+
+  const getUserName = (userId) => {
+    if (!userId) return 'Sistema';
+    const user = users.find((item) => item.id === userId);
+    return user ? user.name : `Usuario #${userId}`;
+  };
+
   if (loading) {
     return <div className="text-stone-500">Carregando...</div>;
   }
@@ -98,7 +124,35 @@ export default function Stock() {
           <h1 className="text-3xl font-heading font-semibold text-stone-900">Estoque</h1>
           <p className="text-sm text-stone-500 mt-1">Controle de estoque e movimentações</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        <div className="flex items-center gap-2">
+        <ExportActions
+          title="Relatorio de Estoque Atual"
+          filename="estoque_atual"
+          rows={stock}
+          columns={[
+            { header: 'Produto', accessor: 'name' },
+            { header: 'SKU', accessor: 'sku' },
+            { header: 'Categoria', accessor: (row) => row.category || '-' },
+            { header: 'Estoque', accessor: (row) => `${row.stock} ${row.unit || ''}` },
+            { header: 'Minimo', accessor: (row) => `${row.min_stock} ${row.unit || ''}` },
+            { header: 'Margem (%)', accessor: (row) => `${Number(row.profit_margin || 0).toFixed(1)}%` },
+            { header: 'Status', accessor: (row) => row.stock <= row.min_stock ? 'Baixo' : 'Normal' },
+          ]}
+        />
+        <ExportActions
+          title="Relatorio de Movimentacoes de Estoque"
+          filename="movimentacoes_estoque"
+          rows={movements}
+          columns={[
+            { header: 'Data', accessor: (row) => new Date(row.created_at).toLocaleDateString('pt-BR') },
+            { header: 'Produto', accessor: (row) => getProductName(row.product_id) },
+            { header: 'Tipo', accessor: 'movement_type' },
+            { header: 'Quantidade', accessor: 'quantity' },
+            { header: 'Motivo', accessor: (row) => row.reason || '-' },
+            { header: 'Usuario', accessor: (row) => getUserName(row.user_id) },
+          ]}
+        />
+        {canMoveStock && <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
         }}>
@@ -173,7 +227,8 @@ export default function Stock() {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
+        </div>
       </div>
 
       {lowStockItems.length > 0 && (
@@ -272,6 +327,7 @@ export default function Stock() {
                     <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Tipo</th>
                     <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Quantidade</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Motivo</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Usuario</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -296,6 +352,7 @@ export default function Stock() {
                         {movement.quantity}
                       </td>
                       <td className="py-3 px-4 text-sm text-stone-700">{movement.reason || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-stone-700">{getUserName(movement.user_id)}</td>
                     </tr>
                   ))}
                 </tbody>

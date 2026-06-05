@@ -8,6 +8,11 @@ class UserRole(str, enum.Enum):
     ADMIN = "ADMIN"
     GERENTE = "GERENTE"
     VENDEDOR = "VENDEDOR"
+    COMPRADOR = "COMPRADOR"
+    FINANCEIRO = "FINANCEIRO"
+    ATENDENTE = "ATENDENTE"
+    AUDITOR = "AUDITOR"
+    TI = "TI"
 
 class AuditAction(str, enum.Enum):
     CREATE = "CREATE"
@@ -22,6 +27,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password = Column(String, nullable=False)
     role = Column(SQLEnum(UserRole), default=UserRole.VENDEDOR)
+    active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 class Product(Base):
@@ -45,10 +51,10 @@ class Product(Base):
 
     @property
     def profit_margin(self):
-        """Calcula a margem de lucro em porcentagem: ((preço_venda - custo) / custo) * 100"""
-        if self.cost_price == 0:
+        """Calcula a margem de lucro em porcentagem: ((preço_venda - custo) / preço_venda) * 100"""
+        if self.sale_price == 0:
             return 0.0
-        return ((self.sale_price - self.cost_price) / self.cost_price) * 100
+        return ((self.sale_price - self.cost_price) / self.sale_price) * 100
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -109,12 +115,16 @@ class Purchase(Base):
     id = Column(Integer, primary_key=True, index=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     total = Column(Float, default=0.0)
+    discount = Column(Float, default=0.0)
     payment_method = Column(String, nullable=True)
-    status = Column(String, default="COMPLETED")
+    order_number = Column(String, nullable=True)
+    invoice_number = Column(String, nullable=True)
+    status = Column(String, default="RECEIVED")
+    received_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     supplier = relationship("Supplier", back_populates="purchases")
-    items = relationship("PurchaseItem", back_populates="purchase", cascade="all, delete-orphan")
+    items = relationship("PurchaseItem", back_populates="purchase", cascade="all, delete-orphan", lazy="selectin")
 
 class PurchaseItem(Base):
     __tablename__ = "purchase_items"
@@ -138,22 +148,43 @@ class StockMovement(Base):
     quantity = Column(Integer, nullable=False)
     reason = Column(String, nullable=True)
     reference_id = Column(Integer, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     product = relationship("Product", back_populates="stock_movements")
 
 class FinancialEntry(Base):
     __tablename__ = "financial_entries"
-    
+
     id = Column(Integer, primary_key=True, index=True)
+
     entry_type = Column(String, nullable=False)
+
     amount = Column(Float, nullable=False)
+
     category = Column(String, nullable=True)
+
     description = Column(Text, nullable=True)
+
     reference_id = Column(Integer, nullable=True)
-    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    
+
+    account_id = Column(
+        Integer,
+        ForeignKey("accounts.id"),
+        nullable=True
+    )
+
+    status = Column(String, default="PENDENTE")
+
+    due_date = Column(DateTime(timezone=True), nullable=True)
+
+    settled_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc)
+    )
+
     account = relationship("Account", back_populates="entries")
 
 class Account(Base):

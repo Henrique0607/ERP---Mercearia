@@ -9,6 +9,21 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const rawUser = localStorage.getItem('softvet_erp_user');
+  if (rawUser) {
+    try {
+      const user = JSON.parse(rawUser);
+      if (user?.id) {
+        config.headers['X-User-Id'] = user.id;
+      }
+    } catch (error) {
+      localStorage.removeItem('softvet_erp_user');
+    }
+  }
+  return config;
+});
+
 export const dashboardAPI = {
   getStats: () => api.get('/api/dashboard'),
 };
@@ -17,6 +32,7 @@ export const productsAPI = {
   getAll: (params) => api.get('/api/products', { params }),
   getOne: (id) => api.get(`/api/products/${id}`),
   create: (data) => api.post('/api/products', data),
+  getCategories: () => api.get("/products/categories"),
   update: (id, data) => api.put(`/api/products/${id}`, data),
   delete: (id) => api.delete(`/api/products/${id}`),
 };
@@ -46,6 +62,7 @@ export const salesAPI = {
 export const purchasesAPI = {
   getAll: (params) => api.get('/api/purchases', { params }),
   create: (data) => api.post('/api/purchases', data),
+  getPurchaseNeedsReport: () => api.get('/api/reports/purchase-needs'),
 };
 
 export const stockAPI = {
@@ -56,13 +73,36 @@ export const stockAPI = {
 
 export const financialAPI = {
   getEntries: (params) => api.get('/api/financial/entries', { params }),
+  getPayables: () => api.get('/api/financial/payables'),
+  getReceivables: () => api.get('/api/financial/receivables'),
   getCashflow: () => api.get('/api/financial/cashflow'),
+  getProfitability: () => api.get('/api/financial/profitability'),
   createEntry: (data) => api.post('/api/financial/entries', data),
+  updateEntry: (id, data) => api.put(`/api/financial/entries/${id}`, data),
+  settleEntry: (id) => api.put(`/api/financial/entries/${id}/settle`),
+  reverseEntry: (id) => api.put(`/api/financial/entries/${id}/reverse`),
 };
 
 export const accountingAPI = {
   getAccounts: () => api.get('/api/accounts'),
   createAccount: (data) => api.post('/api/accounts', data),
+  updateAccount: (id, data) => api.put(`/api/accounts/${id}`, data),
+  deleteAccount: (id) => api.delete(`/api/accounts/${id}`),
+  seedDefaultAccounts: () => api.post('/api/accounts/seed-default'),
+  getBalanceSheet: () => api.get('/api/accounting/balance-sheet'),
+  getIncomeStatement: () => api.get('/api/accounting/income-statement'),
+};
+
+export const usersAPI = {
+  getAll: () => api.get('/api/users'),
+  lookup: () => api.get('/api/users/lookup'),
+  create: (data) => api.post('/api/users', data),
+  update: (id, data) => api.put(`/api/users/${id}`, data),
+  delete: (id) => api.delete(`/api/users/${id}`),
+};
+
+export const authAPI = {
+  login: (data) => api.post('/api/auth/login', data),
 };
 
 export const auditAPI = {

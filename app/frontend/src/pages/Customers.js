@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import ExportActions from '../components/ExportActions';
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
@@ -97,6 +98,25 @@ export default function Customers() {
     }
   };
 
+  const buildAddress = (data) => {
+    const street = [data.rua?.trim(), data.numero?.trim()].filter(Boolean).join(', ');
+    const cityState = [data.cidade?.trim(), data.estado?.trim()].filter(Boolean).join(' - ');
+    const cep = data.cep?.replace(/\D/g, '');
+
+    return [
+      street,
+      data.complemento?.trim(),
+      cityState,
+      cep ? `CEP: ${cep}` : '',
+    ].filter(Boolean).join(' | ');
+  };
+
+  const getAddressText = (customer) => {
+    if (!customer) return '';
+    if (customer.address) return customer.address;
+    return buildAddress(customer);
+  };
+
   const validateCpfCnpjValue = (value) => {
     const clean = value.replace(/\D/g, '');
     
@@ -146,12 +166,7 @@ export default function Customers() {
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         cpf_cnpj: formData.cpf_cnpj.replace(/\D/g, ''),
-        cep: formData.cep.replace(/\D/g, ''),
-        rua: formData.rua.trim(),
-        numero: formData.numero.trim(),
-        estado: formData.estado.trim(),
-        cidade: formData.cidade.trim(),
-        complemento: formData.complemento.trim(),
+        address: buildAddress(formData),
       };
 
       if (editingCustomer) {
@@ -201,7 +216,7 @@ export default function Customers() {
       phone: customer.phone || '',
       cpf_cnpj: customer.cpf_cnpj || '',
       cep: customer.cep || '',
-      rua: customer.rua || '',
+      rua: customer.rua || customer.address || '',
       numero: customer.numero || '',
       estado: customer.estado || '',
       cidade: customer.cidade || '',
@@ -242,6 +257,19 @@ export default function Customers() {
           <h1 className="text-3xl font-heading font-semibold text-stone-900">Clientes</h1>
           <p className="text-sm text-stone-500 mt-1">Gerencie seus clientes</p>
         </div>
+        <div className="flex items-center gap-2">
+        <ExportActions
+          title="Relatorio de Clientes"
+          filename="clientes"
+          rows={customers}
+          columns={[
+            { header: 'Nome', accessor: 'name' },
+            { header: 'E-mail', accessor: (row) => row.email || '-' },
+            { header: 'Telefone', accessor: (row) => row.phone || '-' },
+            { header: 'CPF/CNPJ', accessor: (row) => row.cpf_cnpj || '-' },
+            { header: 'Endereco', accessor: (row) => getAddressText(row) || '-' },
+          ]}
+        />
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
@@ -375,6 +403,7 @@ export default function Customers() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-hidden">
@@ -404,7 +433,7 @@ export default function Customers() {
                         onClick={() => handleViewAddress(customer)}
                         data-testid={`view-address-customer-${customer.id}`}
                       >
-                        📍 Endereço
+                        Endereco
                       </Button>
                       <Button
                         size="sm"
@@ -436,10 +465,16 @@ export default function Customers() {
       <Dialog open={isAddressDialogOpen} onOpenChange={setIsAddressDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>📍 Endereço - {selectedCustomerAddress?.name}</DialogTitle>
+            <DialogTitle>Endereco - {selectedCustomerAddress?.name}</DialogTitle>
           </DialogHeader>
           {selectedCustomerAddress && (
             <div className="space-y-4">
+              {selectedCustomerAddress.address && (
+                <div>
+                  <p className="text-xs font-semibold text-stone-500 uppercase">Endereco completo</p>
+                  <p className="text-stone-900 whitespace-pre-wrap">{selectedCustomerAddress.address}</p>
+                </div>
+              )}
               {selectedCustomerAddress.cep && (
                 <div>
                   <p className="text-xs font-semibold text-stone-500 uppercase">CEP</p>
@@ -476,7 +511,7 @@ export default function Customers() {
                   <p className="text-stone-900">{selectedCustomerAddress.estado}</p>
                 </div>
               )}
-              {!selectedCustomerAddress.cep && !selectedCustomerAddress.rua && !selectedCustomerAddress.numero && !selectedCustomerAddress.complemento && !selectedCustomerAddress.cidade && !selectedCustomerAddress.estado && (
+              {!selectedCustomerAddress.address && !selectedCustomerAddress.cep && !selectedCustomerAddress.rua && !selectedCustomerAddress.numero && !selectedCustomerAddress.complemento && !selectedCustomerAddress.cidade && !selectedCustomerAddress.estado && (
                 <p className="text-stone-500 text-center py-6">Endereço não informado</p>
               )}
             </div>

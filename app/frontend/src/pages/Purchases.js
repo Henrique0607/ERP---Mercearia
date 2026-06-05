@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import ExportActions from '../components/ExportActions';
 
 export default function Purchases() {
   const [purchases, setPurchases] = useState([]);
@@ -16,7 +17,10 @@ export default function Purchases() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [items, setItems] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
   const [supplierId, setSupplierId] = useState('');
+  const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('DINHEIRO');
+  const [orderNumber, setOrderNumber] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
 
   useEffect(() => {
     loadPurchases();
@@ -63,7 +67,10 @@ export default function Purchases() {
           quantity: parseInt(item.quantity),
           unit_price: parseFloat(item.unit_price)
         })),
-        payment_method: paymentMethod
+        discount: parseFloat(discount) || 0,
+        payment_method: paymentMethod,
+        order_number: orderNumber || null,
+        invoice_number: invoiceNumber || null
       };
       await purchasesAPI.create(purchaseData);
       toast.success('Compra registrada com sucesso!');
@@ -92,13 +99,23 @@ export default function Purchases() {
   const resetForm = () => {
     setItems([{ product_id: '', quantity: 1, unit_price: 0 }]);
     setSupplierId('');
+    setDiscount(0);
     setPaymentMethod('DINHEIRO');
+    setOrderNumber('');
+    setInvoiceNumber('');
   };
 
   const calculateTotal = () => {
-    return items.reduce((sum, item) => {
+    const subtotal = items.reduce((sum, item) => {
       return sum + (item.quantity * item.unit_price);
     }, 0);
+    return Math.max(0, subtotal - discount);
+  };
+
+  const getSupplierName = (supplierIdValue) => {
+    if (!supplierIdValue) return '-';
+    const supplier = suppliers.find((item) => item.id === supplierIdValue);
+    return supplier ? supplier.name : `Fornecedor #${supplierIdValue}`;
   };
 
   if (loading) {
@@ -112,6 +129,22 @@ export default function Purchases() {
           <h1 className="text-3xl font-heading font-semibold text-stone-900">Compras</h1>
           <p className="text-sm text-stone-500 mt-1">Registre compras e atualize estoque</p>
         </div>
+        <div className="flex items-center gap-2">
+        <ExportActions
+          title="Relatorio de Compras"
+          filename="compras"
+          rows={purchases}
+          columns={[
+            { header: 'Compra', accessor: (row) => `#${row.id}` },
+            { header: 'Data', accessor: (row) => new Date(row.created_at).toLocaleDateString('pt-BR') },
+            { header: 'Fornecedor', accessor: (row) => getSupplierName(row.supplier_id) },
+            { header: 'Pedido', accessor: (row) => row.order_number || '-' },
+            { header: 'NF Entrada', accessor: (row) => row.invoice_number || '-' },
+            { header: 'Pagamento', accessor: (row) => row.payment_method || '-' },
+            { header: 'Desconto', accessor: (row) => `R$ ${Number(row.discount || 0).toFixed(2)}` },
+            { header: 'Total', accessor: (row) => `R$ ${Number(row.total || 0).toFixed(2)}` },
+          ]}
+        />
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
@@ -128,6 +161,24 @@ export default function Purchases() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4" data-testid="purchase-form">
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="order_number">Numero do Pedido</Label>
+                  <Input
+                    id="order_number"
+                    value={orderNumber}
+                    onChange={(e) => setOrderNumber(e.target.value)}
+                    placeholder="Ex: PC-001"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="invoice_number">NF de Entrada</Label>
+                  <Input
+                    id="invoice_number"
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder="Ex: NF-12345"
+                  />
+                </div>
                 <div>
                   <Label htmlFor="supplier">Fornecedor</Label>
                   <Select value={supplierId} onValueChange={setSupplierId}>
@@ -226,10 +277,32 @@ export default function Purchases() {
               </div>
 
               <div className="flex justify-between items-center border-t border-stone-200 pt-4">
-                <div className="text-right ml-auto">
-                  <p className="text-sm text-stone-500">Total da Compra</p>
-                  <p className="text-2xl font-heading font-semibold text-emerald-700">
-                    R$ {calculateTotal().toFixed(2)}
+                <div className="flex gap-4">
+                  <div>
+                    <Label htmlFor="discount">Desconto (R$)</Label>
+                    <Input
+                      id="discount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                      className="w-32"
+                      data-testid="purchase-discount"
+                    />
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-stone-500">
+                    Subtotal: R$ {items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0).toFixed(2)}
+                  </p>
+                  {discount > 0 && (
+                    <p className="text-sm text-red-600">
+                      Desconto: -R$ {Number(discount || 0).toFixed(2)}
+                    </p>
+                  )}
+                  <p className="text-lg font-semibold text-stone-900">
+                    Total: R$ {calculateTotal().toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -245,6 +318,7 @@ export default function Purchases() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-hidden">
@@ -255,7 +329,9 @@ export default function Purchases() {
                 <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">ID</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Data</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Fornecedor</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Pedido/NF</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Total</th>
+                <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Desconto</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Pagamento</th>
                 <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Status</th>
               </tr>
@@ -268,8 +344,15 @@ export default function Purchases() {
                     {new Date(purchase.created_at).toLocaleDateString('pt-BR')}
                   </td>
                   <td className="py-3 px-4 text-sm text-stone-700">{purchase.supplier_id || '-'}</td>
+                  <td className="py-3 px-4 text-sm text-stone-700">
+                    <div>{purchase.order_number || '-'}</div>
+                    <div className="text-xs text-stone-500">{purchase.invoice_number || '-'}</div>
+                  </td>
                   <td className="py-3 px-4 text-sm text-right font-medium text-stone-900">
                     R$ {purchase.total.toFixed(2)}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right text-stone-700">
+                    {purchase.discount > 0 ? `R$ ${Number(purchase.discount || 0).toFixed(2)}` : '-'}
                   </td>
                   <td className="py-3 px-4 text-sm text-stone-700">{purchase.payment_method || '-'}</td>
                   <td className="py-3 px-4 text-center">

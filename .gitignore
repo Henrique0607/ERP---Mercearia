@@ -1,8 +1,26 @@
-# Ignorar .env do backend
-backend/.env
+# =========================
+# ENV FILES
+# =========================
+.env
+.env.*
+.venv/
+.venv-1/
+.venv-2/
 
-# Ignorar .env do frontend
-frontend/.env
+# =========================
+# FRONTEND NODE MODULES
+# =========================
+app/frontend/node_modules/
+node_modules/
 
-# Ignorar o venv do back
-backend/venv/
+# =========================
+# BACKUP / SYSTEM (opcional mas recomendado)
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# PYTHON CACHE (recomendado manter)
+# =========================
+__pycache__/
+*.pyc

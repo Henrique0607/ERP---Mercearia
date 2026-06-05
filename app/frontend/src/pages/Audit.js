@@ -4,6 +4,25 @@ import { Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Label } from '../components/ui/label';
+import ExportActions from '../components/ExportActions';
+
+const ENTITY_LABELS = {
+  product: 'Produto',
+  customer: 'Cliente',
+  supplier: 'Fornecedor',
+  sale: 'Venda',
+  purchase: 'Compra',
+  stock_movement: 'Movimentacao de Estoque',
+  financial_entry: 'Lancamento Financeiro',
+  account: 'Conta Contabil',
+  user: 'Usuario',
+};
+
+const ACTION_LABELS = {
+  CREATE: 'Criacao',
+  UPDATE: 'Atualizacao',
+  DELETE: 'Exclusao',
+};
 
 export default function Audit() {
   const [logs, setLogs] = useState([]);
@@ -46,6 +65,9 @@ export default function Audit() {
     }
   };
 
+  const formatEntity = (entity) => ENTITY_LABELS[entity] || entity || '-';
+  const formatAction = (action) => ACTION_LABELS[action] || action || '-';
+
   if (loading) {
     return <div className="text-stone-500">Carregando...</div>;
   }
@@ -55,6 +77,22 @@ export default function Audit() {
       <div>
         <h1 className="text-3xl font-heading font-semibold text-stone-900">Auditoria</h1>
         <p className="text-sm text-stone-500 mt-1">Registro de todas as operações do sistema</p>
+      </div>
+
+      <div className="flex justify-end">
+        <ExportActions
+          title="Relatorio de Auditoria"
+          filename="auditoria"
+          rows={logs}
+          columns={[
+            { header: 'Data/Hora', accessor: (row) => new Date(row.timestamp).toLocaleString('pt-BR') },
+            { header: 'Acao', accessor: (row) => formatAction(row.action) },
+            { header: 'Entidade', accessor: (row) => formatEntity(row.entity) },
+            { header: 'ID', accessor: (row) => row.entity_id || '-' },
+            { header: 'Dados antigos', accessor: (row) => formatJson(row.old_data) },
+            { header: 'Dados novos', accessor: (row) => formatJson(row.new_data) },
+          ]}
+        />
       </div>
 
       <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm">
@@ -123,10 +161,10 @@ export default function Audit() {
                       log.action === 'UPDATE' ? 'bg-amber-100 text-amber-800' :
                       'bg-red-100 text-red-800'
                     }`}>
-                      {log.action}
+                      {formatAction(log.action)}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-sm text-stone-700">{log.entity}</td>
+                  <td className="py-3 px-4 text-sm text-stone-700">{formatEntity(log.entity)}</td>
                   <td className="py-3 px-4 text-sm text-stone-700">#{log.entity_id || '-'}</td>
                   <td className="py-3 px-4 text-sm text-stone-700">
                     {log.action === 'CREATE' && log.new_data && (

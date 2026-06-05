@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import ExportActions from '../components/ExportActions';
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
@@ -131,6 +132,25 @@ const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
     }
   };
 
+  const buildAddress = (data) => {
+    const street = [data.rua?.trim(), data.numero?.trim()].filter(Boolean).join(', ');
+    const cityState = [data.cidade?.trim(), data.estado?.trim()].filter(Boolean).join(' - ');
+    const cep = data.cep?.replace(/\D/g, '');
+
+    return [
+      street,
+      data.complemento?.trim(),
+      cityState,
+      cep ? `CEP: ${cep}` : '',
+    ].filter(Boolean).join(' | ');
+  };
+
+  const getAddressText = (supplier) => {
+    if (!supplier) return '';
+    if (supplier.address) return supplier.address;
+    return buildAddress(supplier);
+  };
+
   const handleCNPJChange = (e) => {
     const value = e.target.value
       .replace(/\D/g, '')
@@ -159,12 +179,7 @@ const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         cnpj: formData.cnpj.replace(/\D/g, ''), // Remove formatação, envia apenas 14 dígitos
-        cep: formData.cep.replace(/\D/g, ''),
-        rua: formData.rua.trim(),
-        numero: formData.numero.trim(),
-        estado: formData.estado.trim(),
-        cidade: formData.cidade.trim(),
-        complemento: formData.complemento.trim(),
+        address: buildAddress(formData),
       };
 
       if (editingSupplier) {
@@ -211,7 +226,7 @@ const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
       phone: supplier.phone || '',
       cnpj: supplier.cnpj || '',
       cep: supplier.cep || '',
-      rua: supplier.rua || '',
+      rua: supplier.rua || supplier.address || '',
       numero: supplier.numero || '',
       estado: supplier.estado || '',
       cidade: supplier.cidade || '',
@@ -243,6 +258,19 @@ const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
           <h1 className="text-3xl font-heading font-semibold text-stone-900">Fornecedores</h1>
           <p className="text-sm text-stone-500 mt-1">Gerencie seus fornecedores</p>
         </div>
+        <div className="flex items-center gap-2">
+        <ExportActions
+          title="Relatorio de Fornecedores"
+          filename="fornecedores"
+          rows={suppliers}
+          columns={[
+            { header: 'Nome', accessor: 'name' },
+            { header: 'E-mail', accessor: (row) => row.email || '-' },
+            { header: 'Telefone', accessor: (row) => row.phone || '-' },
+            { header: 'CNPJ', accessor: (row) => formatCNPJ(row.cnpj) },
+            { header: 'Endereco', accessor: (row) => getAddressText(row) || '-' },
+          ]}
+        />
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
@@ -382,6 +410,7 @@ const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-hidden">
@@ -411,7 +440,7 @@ const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
                         onClick={() => handleViewAddress(supplier)}
                         data-testid={`view-address-supplier-${supplier.id}`}
                       >
-                        📍 Endereço
+                        Endereco
                       </Button>
                       <Button
                         size="sm"
@@ -443,10 +472,16 @@ const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
       <Dialog open={isAddressDialogOpen} onOpenChange={setIsAddressDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>📍 Endereço - {selectedSupplierAddress?.name}</DialogTitle>
+            <DialogTitle>Endereco - {selectedSupplierAddress?.name}</DialogTitle>
           </DialogHeader>
           {selectedSupplierAddress && (
             <div className="space-y-4">
+              {selectedSupplierAddress.address && (
+                <div>
+                  <p className="text-xs font-semibold text-stone-500 uppercase">Endereco completo</p>
+                  <p className="text-stone-900 whitespace-pre-wrap">{selectedSupplierAddress.address}</p>
+                </div>
+              )}
               {selectedSupplierAddress.cep && (
                 <div>
                   <p className="text-xs font-semibold text-stone-500 uppercase">CEP</p>
@@ -483,7 +518,7 @@ const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
                   <p className="text-stone-900">{selectedSupplierAddress.estado}</p>
                 </div>
               )}
-              {!selectedSupplierAddress.cep && !selectedSupplierAddress.rua && !selectedSupplierAddress.numero && !selectedSupplierAddress.complemento && !selectedSupplierAddress.cidade && !selectedSupplierAddress.estado && (
+              {!selectedSupplierAddress.address && !selectedSupplierAddress.cep && !selectedSupplierAddress.rua && !selectedSupplierAddress.numero && !selectedSupplierAddress.complemento && !selectedSupplierAddress.cidade && !selectedSupplierAddress.estado && (
                 <p className="text-stone-500 text-center py-6">Endereço não informado</p>
               )}
             </div>

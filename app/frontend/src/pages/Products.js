@@ -6,6 +6,8 @@ import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import ExportActions from '../components/ExportActions';
+import { getCurrentUser } from '../utils/permissions';
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -24,9 +26,14 @@ export default function Products() {
     category: '',
     unit: 'UN',
   });
+  const [categories, setCategories] = useState([]);
+  const [newCategory, setNewCategory] = useState("");
+  const user = getCurrentUser();
+  const canManageProducts = ['ADMIN', 'GERENTE'].includes(user?.role);
 
   useEffect(() => {
     loadProducts();
+    loadCategories();
   }, []);
 
   const loadProducts = async () => {
@@ -37,6 +44,21 @@ export default function Products() {
       toast.error('Erro ao carregar produtos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+
+      const response =
+        await productsAPI.getCategories();
+
+      setCategories(response.data);
+
+    } catch (error) {
+
+      console.error(error);
+
     }
   };
 
@@ -133,7 +155,23 @@ export default function Products() {
           <h1 className="text-3xl font-heading font-semibold text-stone-900">Produtos</h1>
           <p className="text-sm text-stone-500 mt-1">Gerencie o catálogo de produtos</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        <div className="flex items-center gap-2">
+        <ExportActions
+          title="Relatorio de Produtos"
+          filename="produtos"
+          rows={products}
+          columns={[
+            { header: 'SKU', accessor: 'sku' },
+            { header: 'Nome', accessor: 'name' },
+            { header: 'Categoria', accessor: (row) => row.category || '-' },
+            { header: 'Estoque', accessor: (row) => `${row.stock} ${row.unit || ''}` },
+            { header: 'Estoque Minimo', accessor: 'min_stock' },
+            { header: 'Preco Custo', accessor: (row) => `R$ ${Number(row.cost_price || 0).toFixed(2)}` },
+            { header: 'Preco Venda', accessor: (row) => `R$ ${Number(row.sale_price || 0).toFixed(2)}` },
+            { header: 'Margem (%)', accessor: (row) => `${Number(row.profit_margin || 0).toFixed(1)}%` },
+          ]}
+        />
+        {canManageProducts && <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
         }}>
@@ -217,13 +255,37 @@ export default function Products() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="category">Categoria</Label>
+                      
+                  <Label htmlFor="category">
+                    Categoria
+                  </Label>
+                      
                   <Input
                     id="category"
                     data-testid="product-category"
+                    list="categories-list"
                     value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        category: e.target.value
+                      })
+                    }
                   />
+                
+                  <datalist id="categories-list">
+                  
+                    {categories.map((category) => (
+                    
+                      <option
+                        key={category}
+                        value={category}
+                      />
+                    
+                    ))}
+                
+                  </datalist>
+                  
                 </div>
                 <div>
                   <Label htmlFor="unit">Unidade</Label>
@@ -239,15 +301,15 @@ export default function Products() {
               <div>
                 <Label>Margem de Lucro</Label>
                 <div className="mt-1 p-3 bg-stone-50 border border-stone-200 rounded-lg text-sm">
-                  <strong>{((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100).toFixed(1)}%</strong>
+                  <strong>{((formData.sale_price - formData.cost_price) / (formData.sale_price || 1) * 100).toFixed(1)}%</strong>
                   <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                    ((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100) >= 30 
+                    ((formData.sale_price - formData.cost_price) / (formData.sale_price || 1) * 100) >= 30 
                       ? 'bg-emerald-100 text-emerald-800' 
-                      : ((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100) >= 10 
+                      : ((formData.sale_price - formData.cost_price) / (formData.sale_price || 1) * 100) >= 10 
                         ? 'bg-amber-100 text-amber-800' 
                         : 'bg-red-100 text-red-800'
                   }`}>
-                    {((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100) >= 30 ? 'Ótima' : ((formData.sale_price - formData.cost_price) / (formData.cost_price || 1) * 100) >= 10 ? 'Boa' : 'Ruim'}
+                    {((formData.sale_price - formData.cost_price) / (formData.sale_price || 1) * 100) >= 30 ? 'Ótima' : ((formData.sale_price - formData.cost_price) / (formData.sale_price || 1) * 100) >= 10 ? 'Boa' : 'Ruim'}
                   </span>
                 </div>
                 <p className="text-xs text-stone-500 mt-1">
@@ -264,7 +326,8 @@ export default function Products() {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
+        </div>
       </div>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -297,7 +360,7 @@ export default function Products() {
                 <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Preço Custo</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Preço Venda</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Margem (%)</th>
-                <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Ações</th>
+                {canManageProducts && <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-stone-500">Ações</th>}
               </tr>
             </thead>
             <tbody>
@@ -321,7 +384,7 @@ export default function Products() {
                         {margin.toFixed(1)}% {label}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    {canManageProducts && <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <Button
                           size="sm"
@@ -340,7 +403,7 @@ export default function Products() {
                           <Trash2 className="w-4 h-4 text-red-600" />
                         </Button>
                       </div>
-                    </td>
+                    </td>}
                   </tr>
                 );
               })}

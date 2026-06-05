@@ -64,7 +64,72 @@
     @apply bg-background text-foreground font-body;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    overflow: hidden;
+  }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
   }
+}
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  body {
+    visibility: hidden;
+  }
+
+  .print-only {
+    display: none;
+  }
+
+  .print-only.print-active {
+    display: block !important;
+  }
+
+  .print-document.print-active {
+    visibility: visible;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+  }
+
+  .print-red {
+    color: #dc2626 !important;
+  }
+
+  .print-green {
+    color: #059669 !important;
+  }
+
+
+  @page {
+    margin: 14mm;
+  }
+  
+  @keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient {
+  animation: gradientMove 6s ease infinite;
+}
+
 }

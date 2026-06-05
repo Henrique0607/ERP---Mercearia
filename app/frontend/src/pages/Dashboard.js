@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { dashboardAPI } from '../services/api';
 import { TrendingUp, Users, Package, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,6 +7,7 @@ import { toast } from 'sonner';
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadStats();
@@ -37,7 +39,7 @@ http://googleusercontent.com/immersive_entry_chip/0
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm hover:-translate-y-0.5 transition-all duration-200" data-testid="card-sales-today">
+        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm hover:-translate-y-0.5 transition-all duration-200 cursor-pointer" data-testid="card-sales-today" onClick={() => navigate('/vendas?period=today')}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">Vendas Hoje</p>
@@ -51,7 +53,7 @@ http://googleusercontent.com/immersive_entry_chip/0
           </div>
         </div>
 
-        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm hover:-translate-y-0.5 transition-all duration-200" data-testid="card-sales-month">
+        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm hover:-translate-y-0.5 transition-all duration-200 cursor-pointer" data-testid="card-sales-month" onClick={() => navigate('/vendas?period=month')}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">Vendas Mês</p>
@@ -65,7 +67,7 @@ http://googleusercontent.com/immersive_entry_chip/0
           </div>
         </div>
 
-        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm hover:-translate-y-0.5 transition-all duration-200" data-testid="card-customers">
+        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm hover:-translate-y-0.5 transition-all duration-200 cursor-pointer" data-testid="card-customers" onClick={() => navigate('/clientes')}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">Clientes</p>
@@ -79,16 +81,21 @@ http://googleusercontent.com/immersive_entry_chip/0
           </div>
         </div>
 
-        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm hover:-translate-y-0.5 transition-all duration-200" data-testid="card-low-stock">
+        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm hover:-translate-y-0.5 transition-all duration-200 cursor-pointer" data-testid="card-products" onClick={() => navigate('/produtos')}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">Estoque Baixo</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">Total Produtos</p>
               <p className="text-2xl font-heading font-semibold text-stone-900 mt-2">
-                {stats?.low_stock_products || 0}
+                {stats?.total_products || 0}
               </p>
+              {stats?.low_stock_products > 0 && (
+                <p className="text-xs text-red-600 mt-1">
+                  {stats.low_stock_products} com estoque baixo
+                </p>
+              )}
             </div>
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-red-700" />
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <Package className="w-6 h-6 text-purple-700" />
             </div>
           </div>
         </div>
